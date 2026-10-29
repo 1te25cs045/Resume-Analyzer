@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI-Powered Resume Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div class="brand-mark">AI</div>
+          <div>
+            <p class="brand-name">AI-Powered Resume Analyzer</p>
+            <small>Career intelligence for smarter job applications</small>
+          </div>
+        </div>
+
+        <nav class="main-nav" aria-label="Main navigation">
+          <button class="nav-item active" data-target="dashboard">Dashboard</button>
+          <button class="nav-item" data-target="analyze">Analyze Resume</button>
+          <button class="nav-item" data-target="about">About</button>
+        </nav>
+      </header>
+
+      <main>
+        <section id="dashboard" class="page-section active">
+          <div class="hero-card">
+            <div class="hero-copy">
+              <span class="eyebrow">Project Preview</span>
+              <h1>AI-Powered Resume Analyzer</h1>
+              <p>
+                Evaluate a resume against a target job role, identify missing skills,
+                and get practical recommendations to improve your profile.
+              </p>
+              <div class="hero-actions">
+                <button class="primary-btn" data-target="analyze">Analyze Resume</button>
+                <button class="secondary-btn" data-target="about">Learn More</button>
+              </div>
+            </div>
+            <div class="hero-panel">
+              <div class="mini-card">
+                <span>Demo Data</span>
+                <strong>Resume Match</strong>
+                <h3>82%</h3>
+              </div>
+              <div class="mini-list">
+                <div>
+                  <span>Skills Coverage</span>
+                  <strong>Good</strong>
+                </div>
+                <div>
+                  <span>Missing Skills</span>
+                  <strong>3</strong>
+                </div>
+                <div>
+                  <span>Suggested Courses</span>
+                  <strong>4</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <article class="info-card">
+              <span class="card-label">Resume Snapshot</span>
+              <h3>Strong fundamentals</h3>
+              <p>Demo data only: clear formatting and relevant experience.</p>
+            </article>
+            <article class="info-card">
+              <span class="card-label">Skill Gaps</span>
+              <h3>Focused improvements</h3>
+              <p>Targeted recommendations based on the selected job role.</p>
+            </article>
+            <article class="info-card">
+              <span class="card-label">Career Guidance</span>
+              <h3>Actionable next steps</h3>
+              <p>Learning roadmap and resume improvement suggestions.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="analyze" class="page-section">
+          <div class="content-grid">
+            <div class="panel form-panel">
+              <div class="section-header">
+                <div>
+                  <span class="eyebrow">Resume Intake</span>
+                  <h2>Analyze Resume</h2>
+                </div>
+              </div>
+
+              <form id="resumeForm" novalidate>
+                <div class="field-group">
+                  <label for="resumeText">Paste resume text</label>
+                  <textarea
+                    id="resumeText"
+                    name="resumeText"
+                    rows="12"
+                    placeholder="Paste your resume text here..."
+                    required
+                  ></textarea>
+                </div>
+
+                <div class="upload-row">
+                  <div class="field-group upload-group">
+                    <label for="resumeFile">Upload Resume (PDF or TXT)</label>
+                    <input id="resumeFile" name="resumeFile" type="file" accept=".pdf,.txt" />
+                    <small>PDF and TXT uploads are supported where the browser allows reading the file.</small>
+                  </div>
+                </div>
+
+                <div class="field-group">
+                  <label for="targetRole">Target job role</label>
+                  <input
+                    id="targetRole"
+                    name="targetRole"
+                    type="text"
+                    placeholder="Example: Frontend Developer"
+                    required
+                  />
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" id="analyzeSubmitButton" class="primary-btn">Analyze Resume</button>
+                  <button type="button" class="secondary-btn" id="clearForm">Clear</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="panel result-panel">
+              <div class="section-header inline-header">
+                <div>
+                  <span class="eyebrow">Results</span>
+                  <h2>Analysis Report</h2>
+                </div>
+                <span class="demo-tag">Demo Data</span>
+              </div>
+
+              <div id="emptyState" class="state-box empty-state visible">
+                <div class="state-icon">✦</div>
+                <h3>No analysis yet</h3>
+                <p>Submit your resume and role to generate a detailed preview.</p>
+              </div>
+
+              <div id="loadingState" class="state-box loading-state hidden" aria-live="polite">
+                <div class="spinner"></div>
+                <h3>Analyzing your resume...</h3>
+                <p>Checking skills, gaps, and recommendations.</p>
+              </div>
+
+              <div id="errorState" class="state-box error-state hidden" aria-live="assertive">
+                <div class="state-icon">!</div>
+                <h3>Validation required</h3>
+                <p id="errorMessage">Please provide resume text and a target job role.</p>
+              </div>
+
+              <div id="resultsContainer" class="results hidden" aria-live="polite">
+                <div class="result-card">
+                  <div class="card-head">
+                    <h3>1. Resume Summary</h3>
+                    <span id="summaryBadge" class="demo-tag">Basic Fallback</span>
+                  </div>
+                  <p id="resumeSummaryContent"></p>
+                </div>
+
+                <div class="result-card">
+                  <div class="card-head">
+                    <h3>2. Skills Analysis</h3>
+                    <span id="skillsBadge" class="demo-tag">Basic Fallback</span>
+                  </div>
+                  <div id="skillsAnalysisContent"></div>
+                </div>
+
+                <div class="result-card">
+                  <div class="card-head">
+                    <h3>3. Job Recommendations</h3>
+                    <span id="jobRecommendationsBadge" class="demo-tag">Basic Fallback</span>
+                  </div>
+                  <div id="jobRecommendationsContent"></div>
+                </div>
+
+                <div class="result-card">
+                  <div class="card-head">
+                    <h3>4. Missing Skills</h3>
+                    <span id="missingSkillsBadge" class="demo-tag">Basic Fallback</span>
+                  </div>
+                  <div id="missingSkillsContent"></div>
+                </div>
+
+                <div class="result-card">
+                  <div class="card-head">
+                    <h3>5. Learning Suggestions</h3>
+                    <span id="learningSuggestionsBadge" class="demo-tag">Basic Fallback</span>
+                  </div>
+                  <div id="learningSuggestionsContent"></div>
+                </div>
+
+                <div class="result-card">
+                  <div class="card-head">
+                    <h3>6. Resume Improvement Suggestions</h3>
+                    <span id="resumeImprovementBadge" class="demo-tag">Basic Fallback</span>
+                  </div>
+                  <div id="resumeImprovementContent"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="about" class="page-section">
+          <div class="about-card panel">
+            <span class="eyebrow">About the Project</span>
+            <h2>Built for learning and practice</h2>
+            <p>
+              This beginner-friendly project demonstrates a professional UI for a resume
+              analysis workflow. It focuses on layout, form validation, file upload, and
+              state handling without implementing real AI-powered analysis yet.
+            </p>
+            <ul class="about-list">
+              <li>Clean, blue-and-white modern design</li>
+              <li>Responsive layout for desktop and mobile</li>
+              <li>Functional navigation and input interactions</li>
+              <li>Demo-based result preview for learning purposes</li>
+            </ul>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
