@@ -22,6 +22,8 @@ const learningSuggestionsBadge = document.getElementById('learningSuggestionsBad
 const resumeImprovementBadge = document.getElementById('resumeImprovementBadge');
 const learningSuggestionsContent = document.getElementById('learningSuggestionsContent');
 const resumeImprovementContent = document.getElementById('resumeImprovementContent');
+let resumeReadPromise = Promise.resolve();
+let resumeReadError = null;
 
 function showSection(sectionId) {
   sections.forEach((section) => {
@@ -71,45 +73,74 @@ if (analyzeButton) {
   });
 }
 
-resumeFile.addEventListener('change', async (event) => {
-  const file = event.target.files?.[0];
+function readTextFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('The text file could not be read.'));
+    reader.readAsText(file);
+  });
+}
+
+async function extractPdfText(file) {
+  const pdfjs = await import('/node_modules/pdfjs-dist/build/pdf.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc = '/node_modules/pdfjs-dist/build/pdf.worker.mjs';
+  const document = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber);
+    const content = await page.getTextContent();
+    pages.push(content.items.map((item) => item.str || '').join(' '));
+  }
+
+  return pages.join('\n').trim();
+}
+
+resumeText.addEventListener('input', () => {
+  if (resumeText.value.trim()) {
+    resumeFile.value = '';
+    resumeReadError = null;
+    resumeReadPromise = Promise.resolve();
+  }
+});
+
+resumeFile.addEventListener('change', (event) => {
+  const file = event.currentTarget.files?.[0];
+  resumeReadError = null;
 
   if (!file) {
+    resumeReadPromise = Promise.resolve();
     return;
   }
 
-  const extension = file.name.split('.').pop()?.toLowerCase();
+  resumeReadPromise = (async () => {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    let extractedText;
 
-  try {
-    if (extension === 'txt') {
-      const content = await file.text();
-      resumeText.value = content.trim();
-      return;
+    if (extension === 'txt' || file.type === 'text/plain') {
+      extractedText = await readTextFile(file);
+    } else if (extension === 'pdf' || file.type === 'application/pdf') {
+      extractedText = await extractPdfText(file);
+    } else {
+      throw new Error('Unsupported file type. Choose a TXT or PDF resume.');
     }
 
-    if (extension === 'pdf') {
-      const pdfjs = await import('./node_modules/pdfjs-dist/build/pdf.mjs');
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-      let extractedText = '';
+    if (!extractedText.trim()) {
+      throw new Error('No readable text was found in the selected file. Scanned PDFs require OCR or pasted text.');
+    }
 
-      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-        const page = await pdf.getPage(pageNumber);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item) => item.str).join(' ');
-        extractedText += `${pageText}\n`;
-      }
-
+    if (resumeFile.files?.[0] === file) {
       resumeText.value = extractedText.trim();
-      return;
     }
-
-    throw new Error('Unsupported file type');
-  } catch (error) {
+  })().catch((error) => {
+    resumeReadError = error;
     console.error('Unable to read uploaded resume:', error);
-    errorMessage.textContent = 'Unable to read the selected resume file. Please upload a TXT file or paste the text manually.';
-    setState('error');
-  }
+    if (!getTrimmedResumeText()) {
+      errorMessage.textContent = error.message || 'Unable to read the selected resume file. Choose a TXT or text-based PDF.';
+      setState('error');
+    }
+  });
 });
 
 function buildRoleRecommendations(resumeText, targetRole, skillGroups = {}) {
@@ -268,28 +299,71 @@ function renderMissingSkills(skills) {
   `;
 }
 
-function renderExtendedResults(data) {
-  const skillGroups = data?.skillGroups || {};
-  const summary = data?.summary || '';
-  const source = data?.source || 'basic fallback';
-
-  jobRecommendationsBadge.textContent = source === 'AI model' ? 'AI Model' : 'Basic Fallback';
-  missingSkillsBadge.textContent = source === 'AI model' ? 'AI Model' : 'Basic Fallback';
-
-  const recommendations = buildRoleRecommendations(summary, targetRole.value.trim(), skillGroups);
-  const missingSkills = buildMissingSkillsLists(summary, targetRole.value.trim(), skillGroups);
-
-  jobRecommendationsContent.innerHTML = renderRecommendations(recommendations);
-  missingSkillsContent.innerHTML = renderMissingSkills(missingSkills);
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[character]);
 }
 
-const originalRenderAnalysisResults = window.renderAnalysisResults;
-window.renderAnalysisResults = function (data) {
-  if (typeof originalRenderAnalysisResults === 'function') {
-    originalRenderAnalysisResults(data);
+function renderAnalysisResults(data) {
+  const source = data?.source === 'AI model' ? 'AI Model' : 'Basic Fallback';
+  const skillGroups = data?.skillGroups || {};
+  const recommendations = data?.jobRecommendations || [];
+  const missingSkills = data?.missingSkills || [];
+  const learningSuggestions = data?.learningSuggestions || [];
+  const improvements = data?.resumeImprovementSuggestions || [];
+
+  summaryBadge.textContent = source;
+  skillsBadge.textContent = source;
+  jobRecommendationsBadge.textContent = source;
+  missingSkillsBadge.textContent = source;
+  learningSuggestionsBadge.textContent = source;
+  resumeImprovementBadge.textContent = source;
+  resumeSummaryContent.textContent = data?.summary || 'No summary could be generated from the submitted resume.';
+
+  const categoryLabels = {
+    programmingLanguages: 'Programming Languages',
+    frameworks: 'Frameworks / Libraries',
+    databases: 'Databases',
+    tools: 'Tools / Platforms',
+    softSkills: 'Soft Skills'
+  };
+  const categories = Object.entries(skillGroups).filter(([, values]) => Array.isArray(values) && values.length);
+  skillsAnalysisContent.innerHTML = categories.length
+    ? categories.map(([category, values]) => `<div class="skill-category"><h4>${escapeHtml(categoryLabels[category] || category)}</h4><div class="skill-badges">${values.map((skill) => `<span class="skill-badge">${escapeHtml(skill)}</span>`).join('')}</div></div>`).join('')
+    : '<p class="muted-copy">No explicit skills were identified from the submitted resume.</p>';
+
+  if (data?.uncertainSkills?.length) {
+    skillsAnalysisContent.insertAdjacentHTML('beforeend', `<div class="skill-category"><h4>Uncertain Inferences</h4><div class="skill-badges">${data.uncertainSkills.map((skill) => `<span class="skill-badge uncertain">${escapeHtml(skill)}</span>`).join('')}</div></div>`);
   }
-  renderExtendedResults(data);
-};
+  if (data?.source !== 'AI model') {
+    skillsAnalysisContent.insertAdjacentHTML('beforeend', '<p class="info-note">Basic fallback analysis is not AI-generated and may miss context.</p>');
+  }
+
+  jobRecommendationsContent.innerHTML = recommendations.length
+    ? recommendations.map((item) => `<div class="recommendation-item"><div class="recommendation-topline"><strong>${escapeHtml(item.title)}</strong><span class="recommendation-badge ${item.type === 'entry' ? 'entry' : 'growth'}">${item.type === 'entry' ? 'Entry-level' : 'More experience'}</span></div><p>${escapeHtml(item.reason)}</p></div>`).join('')
+    : '<p class="muted-copy">No role recommendations were returned.</p>';
+
+  const groupedGaps = { important: [], useful: [], optional: [] };
+  missingSkills.forEach(({ level, item }) => {
+    if (groupedGaps[level]) groupedGaps[level].push(item);
+  });
+  missingSkillsContent.innerHTML = missingSkills.length
+    ? Object.entries(groupedGaps).map(([level, items]) => items.length ? `<div class="gap-group"><h4>${level}</h4><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>` : '').join('')
+    : '<p class="muted-copy">No clear skill gaps were identified.</p>';
+
+  learningSuggestionsContent.innerHTML = learningSuggestions.length
+    ? learningSuggestions.map((item) => `<div class="recommendation-item"><div class="recommendation-topline"><strong>${escapeHtml(item.topic)}</strong><span class="recommendation-badge entry">${escapeHtml(item.level)}</span></div><p>${escapeHtml(item.why)}</p>${(item.resources || []).map((resource) => `<a href="${escapeHtml(resource.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(resource.title)}</a>`).join(' · ')}</div>`).join('')
+    : '<p class="muted-copy">No learning suggestions were returned.</p>';
+
+  resumeImprovementContent.innerHTML = improvements.length
+    ? `<ol>${improvements.map((item) => `<li><strong>${escapeHtml(item.priority)}: ${escapeHtml(item.section)}</strong> ${escapeHtml(item.advice)}${item.example ? `<p>Example: ${escapeHtml(item.example)}</p>` : ''}</li>`).join('')}</ol>`
+    : '<p class="muted-copy">No resume improvement suggestions were returned.</p>';
+}
 
 function getTrimmedResumeText() {
   return (resumeText?.value || '').trim();
@@ -330,14 +404,28 @@ function clearResultContent() {
 async function handleAnalysisRequest(event) {
   event.preventDefault();
 
-  if (!validateResumeInput()) {
+  setState('loading');
+
+  try {
+    await resumeReadPromise;
+  } catch (error) {
+    resumeReadError = error;
+  }
+
+  if (!getTrimmedResumeText()) {
+    errorMessage.textContent = resumeReadError?.message || 'Please provide resume text or upload a readable resume file.';
+    setState('error');
+    return;
+  }
+
+  if (!getTrimmedTargetRole()) {
+    errorMessage.textContent = 'Please provide a target job role.';
+    setState('error');
     return;
   }
 
   const text = getTrimmedResumeText();
   const role = getTrimmedTargetRole();
-
-  setState('loading');
 
   try {
     const response = await fetch('/api/analyze', {
@@ -355,7 +443,9 @@ async function handleAnalysisRequest(event) {
     setState('success');
   } catch (error) {
     console.error('Resume analysis failed:', error);
-    errorMessage.textContent = 'Unable to analyze the resume. Please check the content and try again.';
+    errorMessage.textContent = error.message || 'Unable to analyze the resume. Please try again.';
     setState('error');
   }
 }
+
+resumeForm.addEventListener('submit', handleAnalysisRequest);
