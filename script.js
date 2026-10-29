@@ -378,7 +378,7 @@ function validateResumeInput() {
   const role = getTrimmedTargetRole();
 
   if (!text) {
-    errorMessage.textContent = 'Please provide resume text or upload a readable resume file.';
+    errorMessage.textContent = resumeReadError?.message || 'Please provide resume text or upload a readable resume file.';
     setState('error');
     return false;
   }
@@ -412,15 +412,7 @@ async function handleAnalysisRequest(event) {
     resumeReadError = error;
   }
 
-  if (!getTrimmedResumeText()) {
-    errorMessage.textContent = resumeReadError?.message || 'Please provide resume text or upload a readable resume file.';
-    setState('error');
-    return;
-  }
-
-  if (!getTrimmedTargetRole()) {
-    errorMessage.textContent = 'Please provide a target job role.';
-    setState('error');
+  if (!validateResumeInput()) {
     return;
   }
 
