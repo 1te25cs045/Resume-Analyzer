@@ -12,12 +12,19 @@ A beginner-friendly college project that demonstrates a professional resume anal
 
 ## Project Structure
 
-- `index.html` — main UI
-- `styles.css` — responsive blue-and-white design
-- `script.js` — form validation, UI state handling, and display logic
+- `public/index.html` — main UI, served as the homepage by Vercel
+- `public/styles.css` — responsive blue-and-white design
+- `public/script.js` — form validation, UI state handling, and display logic
+- `scripts/copy-pdfjs-assets.js` — copies PDF.js browser assets into Vercel's static directory during build
 - `server.js` — backend API and fallback-based analysis
 - `package.json` — project scripts and dependencies
 - `.env.example` — sample AI configuration
+
+The `npm run build` command publishes the PDF.js browser module and worker under `public/vendor/`, where Vercel can serve them as static assets.
+
+## Deploying to Vercel
+
+Import the repository into Vercel with the project root set to this directory. Vercel serves `public/` assets from its CDN, routes `/` to `public/index.html`, and runs the exported Express app for `/api/analyze`. The configured build command copies the PDF.js files into `public/vendor/`. Add `AI_API_KEY` and `AI_MODEL` as Vercel environment variables only if AI-backed analysis is needed.
 
 ## Startup Instructions
 

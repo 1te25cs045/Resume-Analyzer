@@ -8,7 +8,8 @@ const PORT = process.env.PORT || 3000;
 const apiKey = process.env.AI_API_KEY;
 const model = process.env.AI_MODEL || 'gpt-4o-mini';
 
-app.use(express.static(path.join(__dirname)));
+app.use('/vendor/pdfjs-dist', express.static(path.join(__dirname, 'node_modules', 'pdfjs-dist')));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: '1mb' }));
 
 function extractResumeSections(resumeText) {
@@ -348,7 +349,12 @@ async function callAiAnalysis(resumeText, targetRole) {
 app.post('/api/analyze', async (req, res) => {
   const { resumeText = '', targetRole = '' } = req.body || {};
 
-  if (!resumeText || !resumeText.trim() || !targetRole || !targetRole.trim()) {
+  if (
+    typeof resumeText !== 'string'
+    || !resumeText.trim()
+    || typeof targetRole !== 'string'
+    || !targetRole.trim()
+  ) {
     return res.status(400).json({
       error: 'Resume text and target role are required.',
       summary: '',
@@ -377,6 +383,19 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
+Object.assign(module.exports, {
+  app,
+  extractResumeSections,
+  buildRoleRecommendations,
+  buildMissingSkills,
+  buildLearningSuggestions,
+  buildResumeImprovementSuggestions,
+  buildFallbackAnalysis
 });

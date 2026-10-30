@@ -83,8 +83,8 @@ function readTextFile(file) {
 }
 
 async function extractPdfText(file) {
-  const pdfjs = await import('/node_modules/pdfjs-dist/build/pdf.mjs');
-  pdfjs.GlobalWorkerOptions.workerSrc = '/node_modules/pdfjs-dist/build/pdf.worker.mjs';
+  const pdfjs = await import('/vendor/pdfjs-dist/build/pdf.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs-dist/build/pdf.worker.mjs';
   const document = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
   const pages = [];
 

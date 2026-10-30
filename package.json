@@ -4,7 +4,9 @@
   "description": "AI-Powered Resume Analyzer project for beginner college use",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "build": "node scripts/copy-pdfjs-assets.js",
+    "start": "node server.js",
+    "test": "node tests/run.js"
   },
   "keywords": [
     "resume",
@@ -19,6 +21,7 @@
     "pdfjs-dist": "^6.4.299"
   },
   "devDependencies": {
-    "jsdom": "^30.1.3"
+    "fast-check": "^3.23.2",
+    "jsdom": "^20.0.3"
   }
 }
