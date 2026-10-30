@@ -24,6 +24,9 @@ const learningSuggestionsContent = document.getElementById('learningSuggestionsC
 const resumeImprovementContent = document.getElementById('resumeImprovementContent');
 let resumeReadPromise = Promise.resolve();
 let resumeReadError = null;
+let resumeReadId = 0;
+let analysisRequestId = 0;
+let activeAnalysisController = null;
 
 function showSection(sectionId) {
   sections.forEach((section) => {
@@ -98,6 +101,7 @@ async function extractPdfText(file) {
 }
 
 resumeText.addEventListener('input', () => {
+  resumeReadId += 1;
   if (resumeText.value.trim()) {
     resumeFile.value = '';
     resumeReadError = null;
@@ -107,6 +111,7 @@ resumeText.addEventListener('input', () => {
 
 resumeFile.addEventListener('change', (event) => {
   const file = event.currentTarget.files?.[0];
+  const readId = ++resumeReadId;
   resumeReadError = null;
 
   if (!file) {
@@ -130,10 +135,14 @@ resumeFile.addEventListener('change', (event) => {
       throw new Error('No readable text was found in the selected file. Scanned PDFs require OCR or pasted text.');
     }
 
-    if (resumeFile.files?.[0] === file) {
+    if (readId === resumeReadId && resumeFile.files?.[0] === file) {
       resumeText.value = extractedText.trim();
     }
   })().catch((error) => {
+    if (readId !== resumeReadId) {
+      return;
+    }
+
     resumeReadError = error;
     console.error('Unable to read uploaded resume:', error);
     if (!getTrimmedResumeText()) {
@@ -403,6 +412,9 @@ function clearResultContent() {
 
 async function handleAnalysisRequest(event) {
   event.preventDefault();
+  const requestId = ++analysisRequestId;
+  activeAnalysisController?.abort();
+  activeAnalysisController = null;
 
   setState('loading');
 
@@ -412,32 +424,79 @@ async function handleAnalysisRequest(event) {
     resumeReadError = error;
   }
 
+  if (requestId !== analysisRequestId) {
+    return;
+  }
+
   if (!validateResumeInput()) {
     return;
   }
 
   const text = getTrimmedResumeText();
   const role = getTrimmedTargetRole();
+  const controller = new AbortController();
+  activeAnalysisController = controller;
 
   try {
     const response = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resumeText: text, targetRole: role })
+      body: JSON.stringify({ resumeText: text, targetRole: role }),
+      signal: controller.signal
     });
+
+    if (requestId !== analysisRequestId) {
+      return;
+    }
 
     if (!response.ok) {
       throw new Error('Request failed');
     }
 
     const data = await response.json();
+    if (requestId !== analysisRequestId) {
+      return;
+    }
+
     renderAnalysisResults(data);
     setState('success');
   } catch (error) {
+    if (requestId !== analysisRequestId) {
+      return;
+    }
+
     console.error('Resume analysis failed:', error);
     errorMessage.textContent = error.message || 'Unable to analyze the resume. Please try again.';
     setState('error');
+  } finally {
+    if (requestId === analysisRequestId) {
+      activeAnalysisController = null;
+    }
   }
 }
 
 resumeForm.addEventListener('submit', handleAnalysisRequest);
+
+clearFormBtn.addEventListener('click', () => {
+  resumeReadId += 1;
+  analysisRequestId += 1;
+  activeAnalysisController?.abort();
+  activeAnalysisController = null;
+  resumeForm.reset();
+  resumeFile.value = '';
+  resumeReadPromise = Promise.resolve();
+  resumeReadError = null;
+  errorMessage.textContent = 'Please provide resume text and a target job role.';
+  clearResultContent();
+  [
+    summaryBadge,
+    skillsBadge,
+    jobRecommendationsBadge,
+    missingSkillsBadge,
+    learningSuggestionsBadge,
+    resumeImprovementBadge
+  ].forEach((badge) => {
+    badge.textContent = 'Basic Fallback';
+  });
+  setState('empty');
+});

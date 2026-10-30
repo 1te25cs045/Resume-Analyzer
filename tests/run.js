@@ -221,17 +221,61 @@ test('form submits valid input and renders results safely', async () => {
   dom.window.close();
 });
 
-test('clear resets entered data, analysis results, and visible state', () => {
+test('clear resets form fields, upload state, analysis results, badges, and messages', () => {
   const dom = createBrowser();
   const { document } = dom.window;
+  const fileInput = document.getElementById('resumeFile');
+  let selectedFile = { name: 'resume.txt' };
+  Object.defineProperty(fileInput, 'files', {
+    configurable: true,
+    get: () => selectedFile ? [selectedFile] : []
+  });
+  Object.defineProperty(fileInput, 'value', {
+    configurable: true,
+    get: () => selectedFile ? 'C:\\fakepath\\resume.txt' : '',
+    set: (value) => {
+      if (!value) selectedFile = null;
+    }
+  });
   document.getElementById('resumeText').value = 'Resume';
   document.getElementById('targetRole').value = 'Developer';
+  document.getElementById('errorMessage').textContent = 'Old error';
+  document.getElementById('summaryBadge').textContent = 'AI model';
+  document.getElementById('skillsBadge').textContent = 'AI model';
   document.getElementById('resultsContainer').classList.remove('hidden');
   document.getElementById('resumeSummaryContent').textContent = 'Old result';
   document.getElementById('clearForm').click();
 
   assert.strictEqual(document.getElementById('resumeText').value, '');
   assert.strictEqual(document.getElementById('targetRole').value, '');
+  assert.strictEqual(fileInput.value, '');
+  assert.strictEqual(fileInput.files.length, 0);
+  assert(document.getElementById('resultsContainer').classList.contains('hidden'));
+  assert(!document.getElementById('emptyState').classList.contains('hidden'));
+  assert.strictEqual(document.getElementById('resumeSummaryContent').textContent, '');
+  assert.strictEqual(document.getElementById('skillsBadge').textContent, 'Basic Fallback');
+  assert.strictEqual(document.getElementById('errorMessage').textContent, 'Please provide resume text and a target job role.');
+  dom.window.close();
+});
+
+test('clear prevents an in-flight analysis from restoring stale results', async () => {
+  let resolveResponse;
+  const dom = createBrowser(() => new Promise((resolve) => {
+    resolveResponse = resolve;
+  }));
+  const { document } = dom.window;
+  document.getElementById('resumeText').value = 'Resume';
+  document.getElementById('targetRole').value = 'Developer';
+  submitForm(dom.window);
+  await waitFor(() => typeof resolveResponse === 'function');
+
+  document.getElementById('clearForm').click();
+  resolveResponse({
+    ok: true,
+    json: async () => ({ source: 'AI model', summary: 'Stale analysis' })
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
   assert(document.getElementById('resultsContainer').classList.contains('hidden'));
   assert(!document.getElementById('emptyState').classList.contains('hidden'));
   assert.strictEqual(document.getElementById('resumeSummaryContent').textContent, '');
@@ -261,7 +305,11 @@ test('property: arbitrary result text is rendered as text, not executable markup
 
 async function run() {
   let failures = 0;
-  for (const { name, run: runTest } of tests) {
+  const selectedTests = process.env.TEST_FILTER
+    ? tests.filter(({ name }) => new RegExp(process.env.TEST_FILTER, 'i').test(name))
+    : tests;
+
+  for (const { name, run: runTest } of selectedTests) {
     try {
       await runTest();
       console.log(`PASS ${name}`);
@@ -272,7 +320,7 @@ async function run() {
     }
   }
 
-  console.log(`\n${tests.length - failures}/${tests.length} tests passed.`);
+  console.log(`\n${selectedTests.length - failures}/${selectedTests.length} tests passed.`);
   if (failures) process.exitCode = 1;
 }
 
